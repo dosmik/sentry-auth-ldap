@@ -31,10 +31,19 @@ def _get_effective_sentry_role(group_names):
     return highest_role
 
 
+def _update_organizations_role(user, ldap_user):
+    member_role = _get_effective_sentry_role(ldap_user.group_names)
+    members = OrganizationMember.objects.filter(user=user).exclude(role=member_role)
+    for member in members:
+        member.role = member_role
+        member.save()
+
+
 class SentryLdapBackend(LDAPBackend):
     def get_or_build_user(self, username, ldap_user):
         (user, built) = super().get_or_build_user(username, ldap_user)
         if not built:
+            _update_organizations_role(user, ldap_user)
             return (user, built)
 
         user.is_managed = True
