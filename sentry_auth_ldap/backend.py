@@ -5,6 +5,8 @@ from sentry.models import (
     Organization,
     OrganizationMember,
     UserOption,
+    UserRole,
+    UserRoleUser,
 )
 
 
@@ -41,9 +43,9 @@ def _update_organizations_role(user, ldap_user):
 
 
 def _set_superadmin(user):
-    from sentry.models import UserRole, UserRoleUser
     role = UserRole.objects.get(name="Super Admin")
     UserRoleUser.objects.create(user=user, role=role)
+    user.update(is_superuser=True, is_staff=True)
 
 
 class SentryLdapBackend(LDAPBackend):
