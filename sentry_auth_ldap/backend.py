@@ -33,10 +33,17 @@ def _get_effective_sentry_role(group_names):
 
 def _update_organizations_role(user, ldap_user):
     member_role = _get_effective_sentry_role(ldap_user.group_names)
-    members = OrganizationMember.objects.filter(user=user).exclude(role=member_role)
-    for member in members:
-        member.role = member_role
-        member.save()
+
+    if member_role in ('owner',) and (settings.SENTRY_SELF_HOSTED or settings.SENTRY_SINGLE_ORGANIZATION):
+        _set_superadmin(user)
+
+    OrganizationMember.objects.filter(user=user).exclude(role=member_role).update(role=member_role)
+
+
+def _set_superadmin(user):
+    from sentry.models import UserRole, UserRoleUser
+    role = UserRole.objects.get(name="Super Admin")
+    UserRoleUser.objects.create(user=user, role=role)
 
 
 class SentryLdapBackend(LDAPBackend):
@@ -94,6 +101,9 @@ class SentryLdapBackend(LDAPBackend):
             has_global_access=has_global_access,
             flags=getattr(OrganizationMember.flags, 'sso:linked'),
         )
+
+        if member_role in ('owner',) and (settings.SENTRY_SELF_HOSTED or settings.SENTRY_SINGLE_ORGANIZATION):
+            _set_superadmin(user)
 
         if not getattr(settings, 'AUTH_LDAP_SENTRY_SUBSCRIBE_BY_DEFAULT', True):
             UserOption.objects.set_value(
